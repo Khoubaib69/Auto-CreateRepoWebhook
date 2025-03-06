@@ -10,9 +10,36 @@ import urllib
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
+BITBUCKET_USERNAME = os.getenv("BITBUCKET_USERNAME")
+BITBUCKET_TOKEN = os.getenv("BITBUCKET_TOKEN")
+WORKSPACE = "NNAA"
+REPO_SOURCE = "Applications"
+BRANCHE_APP = "feature/applications"
+FILE_NAME = "listApplications"
+REPO_JOB = "nnap-jjd"
+REPO_OWNER_JOB = "NNAP"
+BRANCHE_JOB = "feature/ITNP-125794"
+FILE_PATH_1 = "configurations/jobs/standardAppTerraformPipelineJob.json"
+FILE_PATH_2 = "configurations/jobs/standardMultibranchPipelineJob.json"
+LOCAL_REPO_PATH = "/tmp/nnap-jjd" 
+def setup_git_credentials():
+    """Create a .netrc file to store Git credentials dynamically"""
+    home = os.path.expanduser("~")
+    netrc_path = os.path.join(home, ".netrc")
+
+    with open(netrc_path, "w") as f:
+        f.write(f"machine dsu-bitbucket.nestle.biz\n")
+        f.write(f"login {BITBUCKET_USERNAME}\n")
+        f.write(f"password {BITBUCKET_TOKEN}\n")
+
+    os.chmod(netrc_path, 0o600)  # Restrict file permissions
+    print("✅ Git credentials configured.")
+
+setup_git_credentials()
 
 def clone_or_pull_repo():
     """ Clone the repository if it does not exist, otherwise update it """
+    setup_git_credentials()
     if os.path.exists(LOCAL_REPO_PATH):
         print("Updating local repository...")
         repo = git.Repo(LOCAL_REPO_PATH)
