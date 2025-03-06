@@ -75,14 +75,18 @@ def commit_and_push_changes():
     """Commit and push changes to Bitbucket"""
     try:
         repo = git.Repo(LOCAL_REPO_PATH)
+        # Set Git user identity locally for this repository
+        repo.git.config("user.name", "najeh")
+        repo.git.config("user.email", BITBUCKET_USERNAME)
+        
         repo.git.add(".")
         repo.git.commit("-m", "Updated JSON files via script")
         repo.git.push("origin", BRANCHE_JOB)
         print("🚀 Changes pushed to Bitbucket!")
     except Exception as e:
         print("❌ Error committing and pushing changes:", str(e))
-        # Optionnel : relancer l'exception pour que le serveur retourne une erreur 500
         raise
+
 
 
 def update_pipeline_files(app_name):
