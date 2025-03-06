@@ -183,4 +183,5 @@ def webhook():
     return jsonify({"message": "Webhook received and processed!"}), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Utilise $PORT ou 5000 par défaut
+    app.run(host="0.0.0.0", port=port, debug=True)
