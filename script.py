@@ -72,12 +72,18 @@ def update_file(file_path, new_content):
     return True
 
 def commit_and_push_changes():
-    """ Commit and push changes to Bitbucket """
-    repo = git.Repo(LOCAL_REPO_PATH)
-    repo.git.add(".")
-    repo.git.commit("-m", "Updated JSON files via script")
-    repo.git.push("origin", BRANCHE_JOB)
-    print("🚀 Changes pushed to Bitbucket!")
+    """Commit and push changes to Bitbucket"""
+    try:
+        repo = git.Repo(LOCAL_REPO_PATH)
+        repo.git.add(".")
+        repo.git.commit("-m", "Updated JSON files via script")
+        repo.git.push("origin", BRANCHE_JOB)
+        print("🚀 Changes pushed to Bitbucket!")
+    except Exception as e:
+        print("❌ Error committing and pushing changes:", str(e))
+        # Optionnel : relancer l'exception pour que le serveur retourne une erreur 500
+        raise
+
 
 def update_pipeline_files(app_name):
     """ Modify and push JSON files with new information """
