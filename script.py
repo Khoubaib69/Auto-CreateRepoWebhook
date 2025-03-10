@@ -111,12 +111,13 @@ def update_pipeline_files(app_name):
     }
     file_1_content.get("jobs", []).append(new_entry_1)
     
-    new_entries_2 = [
-        {"jobName": f"dyn-selection/{app_name}", "repoOwner": "NNAA", "repository": f"{app_name}-config", "scriptPath": "Jenkinsfile"},
-        {"jobName": f"nnap-gitops/{app_name}-config", "repoOwner": "NNAA", "repository": f"{app_name}-config", "scriptPath": "Jenkinsfile.auto"},
-        {"jobName": f"nnap-gitops/{app_name}", "repoOwner": "NNAA", "repository": app_name, "scriptPath": "Jenkinsfile.auto"}
-    ]
+    new_entries_2 = {"jobName": f"dyn-selection/{app_name}", "repoOwner": "NNAA", "repository": f"{app_name}-config", "scriptPath": "Jenkinsfile"}
+    new_entries_3 ={"jobName": f"nnap-gitops/{app_name}-config", "repoOwner": "NNAA", "repository": f"{app_name}-config", "scriptPath": "Jenkinsfile.auto"}
+    new_entries_4 ={"jobName": f"nnap-gitops/{app_name}", "repoOwner": "NNAA", "repository": app_name, "scriptPath": "Jenkinsfile.auto"}
+    
     file_2_content.get("jobs", []).extend(new_entries_2)
+    file_2_content.get("jobs", []).extend(new_entries_3)
+    file_2_content.get("jobs", []).extend(new_entries_4)
     
     if update_file(FILE_PATH_1, file_1_content) and update_file(FILE_PATH_2, file_2_content):
         commit_and_push_changes()
