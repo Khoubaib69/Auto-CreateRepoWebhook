@@ -3,25 +3,23 @@ import requests
 import git
 import os
 from flask import Flask, request, jsonify
-import urllib3
 import urllib
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 BITBUCKET_USERNAME = os.getenv("BITBUCKET_USERNAME")
 BITBUCKET_TOKEN = os.getenv("BITBUCKET_TOKEN")
 WORKSPACE = "NNAA"
 REPO_SOURCE = "Applications"
-BRANCHE_APP = "feature/applications"
 FILE_NAME = "listApplications"
 REPO_JOB = "nnap-jjd"
 REPO_OWNER_JOB = "NNAP"
-BRANCHE_JOB = "feature/ITNP-125794"
 FILE_PATH_1 = "configurations/jobs/standardAppTerraformPipelineJob.json"
 FILE_PATH_2 = "configurations/jobs/standardMultibranchPipelineJob.json"
 LOCAL_REPO_PATH = "/tmp/nnap-jjd" 
+branch_name = None
+committer_name = None
+committer_email = None
 def setup_git_credentials():
     """Create a .netrc file to store Git credentials dynamically"""
     home = os.path.expanduser("~")
@@ -40,12 +38,24 @@ setup_git_credentials()
 def clone_or_pull_repo():
     """ Clone the repository if it does not exist, otherwise update it """
     setup_git_credentials()
+    
     if os.path.exists(LOCAL_REPO_PATH):
-        print("Updating local repository...")
         repo = git.Repo(LOCAL_REPO_PATH)
         repo.git.fetch("origin")
-        repo.git.checkout(BRANCHE_JOB)
-        repo.git.pull("origin", BRANCHE_JOB)
+        
+        # Check if the branch exists on the remote
+        remote_branches = [ref.name for ref in repo.remote().refs]
+        branch_exists = f"origin/{branch_name}" in remote_branches
+
+        if not branch_exists:
+            print(f"⚠️ La branche '{branch_name}' n'existe pas sur le remote. Création en cours...")
+            repo.git.checkout("-b", branch_name)  # Create the branch locally
+            repo.git.push("origin", branch_name)  # Push the branch to the remote
+            print(f"✅ Branche '{branch_name}' créée et poussée avec succès !")
+        else:
+            repo.git.checkout(branch_name)  # Switch to the existing branch
+            repo.git.pull("origin", branch_name)  # Update the branch
+
     else:
         print("Cloning the repository...")
         url = f"https://dsu-bitbucket.nestle.biz/scm/{REPO_OWNER_JOB}/{REPO_JOB}.git"
@@ -56,7 +66,9 @@ def clone_or_pull_repo():
         print("Using URL:", url)  # Debugging
         git.Repo.clone_from(url, LOCAL_REPO_PATH)
         repo = git.Repo(LOCAL_REPO_PATH)
-        repo.git.checkout(BRANCHE_JOB)
+        repo.git.checkout("-b", branch_name)  # Create the branch after cloning
+        repo.git.push("origin", branch_name)  # Push the branch to the remote
+
 
 def update_file(file_path, new_content):
     """ Update a JSON file in the local repository """
@@ -71,21 +83,15 @@ def update_file(file_path, new_content):
     print(f"✅ File {file_path} updated locally.")
     return True
 
-def commit_and_push_changes():
-    """Commit and push changes to Bitbucket"""
-    try:
-        repo = git.Repo(LOCAL_REPO_PATH)
-        # Set Git user identity locally for this repository
-        repo.git.config("user.name", "najeh")
-        repo.git.config("user.email", BITBUCKET_USERNAME)
-        
-        repo.git.add(".")
-        repo.git.commit("-m", "Updated JSON files via script")
-        repo.git.push("origin", BRANCHE_JOB)
-        print("🚀 Changes pushed to Bitbucket!")
-    except Exception as e:
-        print("❌ Error committing and pushing changes:", str(e))
-        raise
+def commit_and_push_changes(comment):
+    """ Commit and push changes to Bitbucket """
+    repo = git.Repo(LOCAL_REPO_PATH)
+    repo.git.config("user.name", committer_name)
+    repo.git.config("user.email", committer_email)
+    repo.git.add(".")
+    repo.git.commit("-m", comment)
+    repo.git.push("origin", branch_name)
+    print("🚀 Changes pushed to Bitbucket!")
 
 
 
@@ -120,16 +126,17 @@ def update_pipeline_files(app_name):
     file_2_content.get("jobs", []).extend(new_entries_2)
     
     if update_file(FILE_PATH_1, file_1_content) and update_file(FILE_PATH_2, file_2_content):
-        commit_and_push_changes()
+        commit_and_push_changes("Updated  via script")
 
 def get_apps_json():
     """ Retrieve the apps.json file from Bitbucket """
-    url = f"https://dsu-bitbucket.nestle.biz/rest/api/1.0/projects/{WORKSPACE}/repos/{REPO_SOURCE}/raw/{FILE_NAME}.json?at={BRANCHE_APP}"
+    url = f"https://dsu-bitbucket.nestle.biz/rest/api/1.0/projects/{WORKSPACE}/repos/{REPO_SOURCE}/raw/{FILE_NAME}.json?at={branch_name}"
     auth = (BITBUCKET_USERNAME, BITBUCKET_TOKEN)
+    print(BITBUCKET_TOKEN)
     response = requests.get(url, auth=auth, verify=False)
     
     if response.status_code == 200:
-        print("✅ apps.json successfully retrieved!")
+        print("✅ listApplications.json successfully retrieved!")
         return response.json()
     else:
         print(f"❌ Error retrieving listApplications.json ({response.status_code}): {response.text}")
@@ -176,6 +183,32 @@ def home():
     return "Welcome to the webhook API!"
 
 @app.route("/webhook", methods=["POST"])
+def readWebhook():
+    global branch_name, committer_name, committer_email
+    print("📩 Webhook reçu!")
+
+    try:
+       
+        data = json.loads(request.data)
+       
+        # Extraire les informations nécessaires
+        branch_name = data['changes'][0]['ref']['displayId']  # Nom de la branche
+        committer_name = data['toCommit']['parents'][0]['author']['name']  # Nom du committeur
+        committer_email = data['toCommit']['committer']['emailAddress']  # Email du committeur
+
+        # Afficher dans la console
+        print(f"🌿 Branche : {branch_name}")
+        print(f"👤 Committeur : {committer_name}")
+        print(f"📧 Email : {committer_email}")
+        
+        return webhook()
+
+    except KeyError as e:
+        print(f"❌ Erreur dans la structure JSON reçue : {e}")
+        return jsonify({"error": "Format JSON invalide"}), 400
+    except Exception as e:
+        print(f"❌ Erreur inattendue : {e}")
+        return jsonify({"error": "Erreur serveur"}), 500
 def webhook():
     print("📩 Webhook received!")
     apps_data = get_apps_json()
